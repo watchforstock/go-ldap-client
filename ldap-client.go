@@ -112,7 +112,7 @@ func (lc *LDAPClient) Authenticate(username, password string) (bool, map[string]
 	}
 
 	userDN := sr.Entries[0].DN
-	user := map[string]string{}
+	user := map[string]string{"dn":userDN}
 	for _, attr := range lc.Attributes {
 		user[attr] = sr.Entries[0].GetAttributeValue(attr)
 	}
