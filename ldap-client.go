@@ -134,6 +134,53 @@ func (lc *LDAPClient) Authenticate(username, password string) (bool, map[string]
 	return true, user, nil
 }
 
+// Authenticate authenticates the user against the ldap backend.
+func (lc *LDAPClient) GetAttributes(username string) (map[string]string, error) {
+	err := lc.Connect()
+	if err != nil {
+		return nil, err
+	}
+
+	// First bind with a read only user
+	if lc.BindDN != "" && lc.BindPassword != "" {
+		err := lc.Conn.Bind(lc.BindDN, lc.BindPassword)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	attributes := append(lc.Attributes, "dn")
+	// Search for the given username
+	searchRequest := ldap.NewSearchRequest(
+		lc.Base,
+		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+		fmt.Sprintf(lc.UserFilter, username),
+		attributes,
+		nil,
+	)
+
+	sr, err := lc.Conn.Search(searchRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(sr.Entries) < 1 {
+		return nil, errors.New("User does not exist")
+	}
+
+	if len(sr.Entries) > 1 {
+		return nil, errors.New("Too many entries returned")
+	}
+
+	userDN := sr.Entries[0].DN
+	user := map[string]string{"dn":userDN}
+	for _, attr := range lc.Attributes {
+		user[attr] = sr.Entries[0].GetAttributeValue(attr)
+	}
+
+	return user, nil
+}
+
 // GetGroupsOfUser returns the group for a user.
 func (lc *LDAPClient) GetGroupsOfUser(username string) ([]string, error) {
 	err := lc.Connect()
